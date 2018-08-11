@@ -1,0 +1,24 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "value": "scu_pd1_hub_vnet_10.11.0.0_16"
+        },
+        "location": {
+            "value": "southcentralus"
+        },
+        "addressPrefix": {
+            "value": "10.11.0.0/16"
+        },
+        "subnetName": {
+            "value": "scu_pd1_snet_mgmt"
+        },
+        "subnetAddressPrefix": {
+            "value": "10.11.255.0/24"
+        },
+        "enableDdosProtection": {
+            "value": false
+        }
+    }
+}

@@ -1,0 +1,412 @@
+// PROJECT LOG //
+
+
+/ new Azure subscription
+  free trial ($200 for 30 days)
+
+/ created new git repo for project in lantamer account
+
+/ installing azure-cli on mac
+
+/ netbox on azure
+
+https://docs.microsoft.com/en-us/cli/azure/install-azure-cli-macos?view=azure-cli-latest
+
+ brew update && brew install azure-cli
+
+* error with brew, used solution from this site:
+https://apple.stackexchange.com/questions/254380/macos-sierra-invalid-active-developer-path
+
+ xcode-select --install
+
+
+* test azure-cli and login
+
+
+/ create virtual network (major subnet)
+  scu_pd1_hub_vnet_10.11.0.0_16
+    region(3)_environment(3)_function(3)_vnet_subnet_mask
+
+create new resource group
+  scu_hub_rg_network
+
+subnet
+  scu_pd1_snet_mgmt
+  address range:
+    10.11.255.0/24
+
+* used template for above in portal, downloaded template file to desktop
+
+copy template to new folder
+  /git/netbox-azure/azure-cli/vnets
+
+* Deploy template
+
+az group create --name scu_hub_rg_network --location "South Central US"
+
+az group deployment create \
+  --name deployment_vnet_hub_create \
+  --mode Complete \
+  --resource-group scu_hub_rg_network \
+  --template-file template_vnet_scu_hub_rg_network.json \
+  --parameters @parameters_vnet_scu_hub_rg_network.json
+
+
+// create a storage account
+name: scupd1infra
+  region(3)_environment(3)_purpose
+
+account kind: Storage (general purpose v1)
+
+Location: south central US
+
+Replication: LRS
+
+Performance: standard
+
+Secure transfer required: Disabled
+
+Resource group:
+  scu_hub_rg_network
+
+
+* download template locally, copy to folder
+ git/netbox-azure/azure-cli/vnets
+
+* run deployment
+
+az group deployment create \
+  --name deployment_storage_hub_create \
+  --mode Complete \
+  --resource-group rg_pd1_deployment \
+  --template-file template_storage_scu_hub_rg_network.json \
+  --parameters @parameters_storage_scu_hub_rg_network.json
+
+
+
+
+// deploy new subnet
+
+az network vnet subnet create -g scu_hub_rg_network --vnet-name scu_pd1_hub_vnet_10.11.0.0_16 -n scu_pd1_snet_netbox \
+                            --address-prefix 10.11.61.0/24
+
+
+
+// deploy ubuntu vm
+
+new ubuntu 16.04LTS server virtual machine
+naming scheme: acct(2)region(3)environment(3)app+instancenumber(any)
+example: lt(lantamer)scu(region)pd1(environment)netbox1(app+instancenumber)
+
+ ltscupd1netbox1
+
+VM Disk type: HDD
+
+username: qdd
+authentication type: password
+
+resource group
+ New
+
+naming scheme: environment(3)_rsg_app
+  pd1_rsg_netbox
+
+Location: South Central US
+
+Choose a size: A1 Basic (est. $18.60/month)
+
+ managed disk: no
+
+Storage account: allow it to create
+  scupd1netbox
+
+
+
+virtual network
+  create existing
+    name: scu_pd1_hub_vnet_10.11.0.0/16
+    subnet: new
+            scu_pd1_snet_netbox (10.11.61.0/24)
+
+network security group:
+	advanced
+
+create new: ltscupd1netbox1-nsg
+
+inbound security rules
+1000: default-allow-ssh
+[[[ REDACTED ]]]
+source port ranges: *
+Destination
+VirtualNetwork
+Destination port ranges: 22,443
+protocol: tcp
+Action: allow
+Name:
+inbound_remoteoffice_tcp_80_443
+add rule
+
+auto shutdown:
+02:00am
+UTC
+
+diagnostic storage account: new
+
+download template and parameters
+
+
+// Deploy new vm from azure CLI
+
+(Admin password was null, added a temporary one)
+
+az group deployment create \
+  --name deployment_vm-ubuntu-1604-lts-server_create \
+  --mode Complete \
+  --resource-group pd1_rsg_netbox \
+  --template-file template_vm_ubuntu-1604-lts.json \
+  --parameters @parameters_vm_ubuntu-1604-lts.json
+
+
+// boot vm and connect remotely
+
+IP: [[[ REDACTED ]]]
+ssh qdd@[[[ REDACTED ]]]
+
+update temporary password
+
+// begin netbox install instructions
+http://netbox.readthedocs.io/en/stable/installation/
+
+apt-get update
+apt-get install -y postgresql libpq-dev
+
+
+sudo -u postgres psql
+CREATE DATABASE netbox;
+CREATE USER netbox WITH PASSWORD 'redacted';
+GRANT ALL PRIVILEGES ON DATABASE netbox TO netbox;
+\q
+
+
+
+apt-get install -y python3 python3-dev python3-setuptools build-essential libxml2-dev libxslt1-dev libffi-dev graphviz libpq-dev libssl-dev zlib1g-dev
+
+easy_install3 pip
+
+
+wget https://github.com/digitalocean/netbox/archive/v2.4.3.tar.gz
+tar -xzf v2.4.3.tar.gz -C /opt
+cd /opt/
+ln -s netbox-2.4.3/ netbox
+cd /opt/netbox/
+
+pip3 install -r requirements.txt
+
+
+
+cd netbox/netbox/
+cp configuration.example.py configuration.py
+
+Open configuration.py with your preferred editor and set the following variables:
+
+ALLOWED_HOSTS
+DATABASE
+SECRET_KEY
+
+
+cd /opt/netbox/netbox/
+python3 manage.py migrate
+
+python3 manage.py createsuperuser
+
+python3 manage.py collectstatic --no-input
+
+
+
+* testing the app
+python3 manage.py runserver 0.0.0.0:8000 --insecure
+
+http://[[[ REDACTED ]]]:8000
+
+did not work, modified ALLOWED HOSTS to = "*", resolved the issue
+
+
+* install apache
+apt-get install -y apache2
+
+
+* created netbox.conf file
+
+<VirtualHost *:80>
+    ProxyPreserveHost On
+
+    ServerName ltscupd1netbox1
+
+    Alias /static /opt/netbox/netbox/static
+
+    # Needed to allow token-based API authentication
+    WSGIPassAuthorization on
+
+    <Directory /opt/netbox/netbox/static>
+        Options Indexes FollowSymLinks MultiViews
+        AllowOverride None
+        Require all granted
+    </Directory>
+
+    <Location /static>
+        ProxyPass !
+    </Location>
+
+    RequestHeader set "X-Forwarded-Proto" expr=%{REQUEST_SCHEME}
+    ProxyPass / http://127.0.0.1:8001/
+    ProxyPassReverse / http://127.0.0.1:8001/
+</VirtualHost>
+
+
+saved to /etc/apache2/sites-available/netbox.conf
+
+* load apache2 modules and reload apache
+
+a2enmod proxy
+a2enmod proxy_http
+a2enmod headers
+a2ensite netbox
+service apache2 restart
+
+* could not start apache: "Invalid command 'WSGIPassAuthorization', perhaps misspelled or defin"
+
+seems another module is needed:
+https://groups.google.com/forum/#!topic/reviewboard/Q7MJyYVxpBY
+
+apt-get install libapache2-mod-wsgi
+a2enmod wsgi
+service apache2 restart
+
+
+
+* gunicore
+
+pip3 install gunicorn
+
+created /opt/netbox/gunicorn_config.py:
+
+command = '/usr/bin/gunicorn'
+pythonpath = '/opt/netbox/netbox'
+bind = '127.0.0.1:8001'
+workers = 3
+user = 'www-data'
+
+
+* supervisord
+
+apt-get install -y supervisor
+
+Save the following as /etc/supervisor/conf.d/netbox.conf:
+
+[program:netbox]
+command = gunicorn -c /opt/netbox/gunicorn_config.py netbox.wsgi
+directory = /opt/netbox/netbox/
+user = www-data
+
+[program:netbox-rqworker]
+command = python3 /opt/netbox/netbox/manage.py rqworker
+directory = /opt/netbox/netbox/
+user = www-data
+
+* update NSG rules to allow port 80 for testing, will migrate later to 443
+
+az network nsg rule list --nsg-name ltscupd1netbox1-nsg --resource-group pd1_rsg_netbox
+
+output:
+[
+  {
+    "access": "Allow",
+    "description": null,
+    "destinationAddressPrefix": "VirtualNetwork",
+    "destinationAddressPrefixes": [],
+    "destinationApplicationSecurityGroups": null,
+    "destinationPortRange": null,
+    "destinationPortRanges": [
+      "22",
+      "443"
+    ],
+    "direction": "Inbound",
+    "etag": "W/\"f956008b-0dd5-47da-9130-61671c5fa826\"",
+    "id": "/subscriptions/702e7218-0f99-4c0d-9922-ab1313c9091d/resourceGroups/pd1_rsg_netbox/providers/Microsoft.Network/networkSecurityGroups/ltscupd1netbox1-nsg/securityRules/inbound_remoteoffice_tcp_80_443",
+    "name": "inbound_remoteoffice_tcp_80_443",
+    "priority": 100,
+    "protocol": "TCP",
+    "provisioningState": "Succeeded",
+    "resourceGroup": "pd1_rsg_netbox",
+    "sourceAddressPrefix": "[[[ REDACTED ]]]",
+    "sourceAddressPrefixes": [],
+    "sourceApplicationSecurityGroups": null,
+    "sourcePortRange": "*",
+    "sourcePortRanges": [],
+    "type": "Microsoft.Network/networkSecurityGroups/securityRules"
+  },
+  {
+    "access": "Allow",
+    "description": null,
+    "destinationAddressPrefix": "VirtualNetwork",
+    "destinationAddressPrefixes": [],
+    "destinationApplicationSecurityGroups": null,
+    "destinationPortRange": "8000",
+    "destinationPortRanges": [],
+    "direction": "Inbound",
+    "etag": "W/\"f956008b-0dd5-47da-9130-61671c5fa826\"",
+    "id": "/subscriptions/702e7218-0f99-4c0d-9922-ab1313c9091d/resourceGroups/pd1_rsg_netbox/providers/Microsoft.Network/networkSecurityGroups/ltscupd1netbox1-nsg/securityRules/inbound_remoteoffice_netbox_8000",
+    "name": "inbound_remoteoffice_netbox_8000",
+    "priority": 110,
+    "protocol": "TCP",
+    "provisioningState": "Succeeded",
+    "resourceGroup": "pd1_rsg_netbox",
+    "sourceAddressPrefix": "[[[ REDACTED ]]]",
+    "sourceAddressPrefixes": [],
+    "sourceApplicationSecurityGroups": null,
+    "sourcePortRange": "*",
+    "sourcePortRanges": [],
+    "type": "Microsoft.Network/networkSecurityGroups/securityRules"
+  }
+]
+
+
+
+* create new rule from azure CLI
+
+az network nsg rule create --name inbound_remoteoffice_tcp_80 --nsg-name ltscupd1netbox1-nsg --priority 120 --resource-group pd1_rsg_netbox --access Allow --destination-port-range 80 --direction Inbound --protocol TCP --source-address-prefixes [[[ REDACTED ]]] --destinationAddressPrefix VirtualNetwork
+
+* test access via http
+
+http://[[[ REDACTED ]]]
+
+site goes to default apache page, not netbox site
+
+service apache2 stop
+
+a2ensite netbox
+
+- troubleshooting apache not loading netbox
+
+https://askubuntu.com/questions/603451/why-am-i-getting-the-apache2-ubuntu-default-page-instead-of-my-own-index-html-pa
+
+removed /etc/apache2/sites-available/000-default.conf
+
+works!
+
+* secure with ssl
+
+https://www.digitalocean.com/community/tutorials/how-to-secure-apache-with-let-s-encrypt-on-ubuntu-16-04
+
+- create non-root sudo-enabled user
+
+adduser letsencrypt
+
+- add sudo privileges
+
+usermod -aG sudo letsencrypt
+
+[ too much work, abandoning, will stick with 80 for demo purposes ]
+
+
+// Begin using NETBOX //

@@ -1,0 +1,70 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "value": "southcentralus"
+        },
+        "virtualMachineName": {
+            "value": "ltscupd1netbox1"
+        },
+        "virtualMachineSize": {
+            "value": "Basic_A1"
+        },
+        "adminUsername": {
+            "value": "qdd"
+        },
+        "virtualNetworkName": {
+            "value": "scu_pd1_hub_vnet_10.11.0.0_16"
+        },
+        "networkInterfaceName": {
+            "value": "ltscupd1netbox118"
+        },
+        "networkSecurityGroupName": {
+            "value": "ltscupd1netbox1-nsg"
+        },
+        "adminPassword": {
+            "value": "5ov647m5hQHqwvTwfJ2uyzt13lYmSSfOpabeHUoAL4AfvHMIsd"
+        },
+        "storageAccountName": {
+            "value": "scupd1netbox"
+        },
+        "storageAccountType": {
+            "value": "Standard_LRS"
+        },
+        "diagnosticsStorageAccountName": {
+            "value": "pd1rsgnetboxdiag676"
+        },
+        "diagnosticsStorageAccountType": {
+            "value": "Standard_LRS"
+        },
+        "diagnosticsStorageAccountId": {
+            "value": "Microsoft.Storage/storageAccounts/pd1rsgnetboxdiag676"
+        },
+        "subnetName": {
+            "value": "scu_pd1_snet_netbox"
+        },
+        "publicIpAddressName": {
+            "value": "ltscupd1netbox1-ip"
+        },
+        "publicIpAddressType": {
+            "value": "Static"
+        },
+        "publicIpAddressSku": {
+            "value": "Basic"
+        },
+        "autoShutdownStatus": {
+            "value": "Enabled"
+        },
+        "autoShutdownTime": {
+            "value": "02:00"
+        },
+        "autoShutdownTimeZone": {
+            "value": "UTC"
+        },
+        "autoShutdownNotificationStatus": {
+            "value": "Disabled"
+        }
+    }
+}
+
