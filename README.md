@@ -1,12 +1,16 @@
 # netbox azure deployment
 
-Scripts and documentation for configuring NETBOX in Azure
+Scripts and documentation for configuring NETBOX in Azure.
 
-/documentation/project-log.txt
+This was my first Netbox and Azure VM deployment, so this is VERY rough and VERY simple.
+
+Start with this file to see the steps taken and get deteails on the commands used.
+
+  /documentation/project-log.txt
 
 Detailed notes of step-by-step configuration steps
 
-/azure-cli
+  /azure-cli
 
 Azure CLI JSON templates and parameters files used for setup
 
